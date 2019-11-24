@@ -1,0 +1,134 @@
+﻿@using System.Web.UI.HtmlControls;
+@using System.Threading;
+@using GdPicture14.Annotations;
+@using GdPicture14;
+@inherits System.Web.Mvc.WebViewPage
+
+@{
+    Layout = null;
+
+}
+
+<!DOCTYPE html>
+
+<html>
+<head>
+    
+    <title>DocuVieware - Annotations Tooltip.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="~/Scripts/jquery-3.1.0.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/js/bootstrap.min.js"></script>
+    
+    <link href="~/Content/docuvieware-min.css" rel="stylesheet" type="text/css" />
+   
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/css/bootstrap.min.css">
+    <script src="~/Scripts/docuvieware-min.js"></script>
+   
+</head>
+<body>
+    <div class="container-fluid" style="width:100vw; height:100vh;">
+        @{
+
+            GdPicture14.WEB.DocuVieware docuVieware = new GdPicture14.WEB.DocuVieware
+            {
+                ID = "DocuVieware1",
+                Timeout = 20,
+                Height = new System.Web.UI.WebControls.Unit("100%"),
+                Width = new System.Web.UI.WebControls.Unit("100%"),
+                DisableAnnotationDrawingModePanel = false,
+                SinglePageView = false,
+                ForceScrollBars = false,
+                AllowedExportFormats = "*",
+                MaxUploadSize = 52428800,
+                EnableMultipleThumbnailSelection = false,
+                EnableMouseModeButtons = true,
+                EnablePanModeButton = true,
+                EnableTwainAcquisitionButton = false,
+                EnableFormFieldsEdition = true,
+                EnablePrintButton = true,
+                EnableSaveButton = true
+
+
+            };
+            docuVieware.LoadFromStream(new FileStream(Server.MapPath(Url.Content("~/Docs/sample.pdf")), FileMode.Open, FileAccess.Read));
+            docuVieware.RenderControl(Output);
+
+        }
+
+
+    </div>
+
+
+
+    <div id="ttol" title="" style="position: absolute; left: 50%;"></div>
+
+    
+    <script>
+        
+       
+       ////get creen PPI
+        function getDocumentPPI() {
+            var elem = document.createElement('div');
+            elem.style.width = '1in';
+            document.body.appendChild(elem);
+            var ppi = elem.offsetWidth;
+            document.body.removeChild(elem);
+            return ppi;
+        }
+
+
+        ///tooltip 
+        DocuViewareAPI.RegisterOnAnnotationMouseEnter("DocuVieware1", function (annot) {
+            var PPI = getDocumentPPI();
+            var pageH = DocuViewareAPI.GetPageHeight("DocuVieware1", DocuViewareAPI.GetCurrentPage("DocuVieware1"));
+            var pageW = DocuViewareAPI.GetPageWidth("DocuVieware1", DocuViewareAPI.GetCurrentPage("DocuVieware1"));
+
+            DocuViewareAPI.PostCustomServerAction('DocuVieware1', false, "tooltip", annot.id, function (result) {
+                //scroll from the document's top
+                var scTop = DocuViewareAPI.GetViewerScrollTop("DocuVieware1");
+                //conversion page heigth inches into pixels including zoom ratio, consider space between pages
+                var PageRelative = pageH * PPI * DocuViewareAPI.GetCurrentZoom("DocuVieware1");
+                
+                //scroll related to the specific page. (6) pixels can be the space between pages
+                var scrollRelative = scTop % (PageRelative + 6);
+
+
+                var scrollLeft = DocuViewareAPI.GetViewerScrollLeft("DocuVieware1");
+                //snapin panel size
+                var upperPanel = 48;
+                var sidePanel = 0;
+                var window = DocuViewareAPI.GetSnapInPanelWidth("DocuVieware1") + sidePanel;
+                //space between snapin and document attention innerWidth divided by 2 for 50% width
+                var space = (self.innerWidth - pageW * PPI * DocuViewareAPI.GetCurrentZoom("DocuVieware1") - window) / 2;
+                if (space < 0) {
+                    space = 0;
+                }
+
+
+                if ((result.Top - result.Height / 2) * PPI * DocuViewareAPI.GetCurrentZoom("DocuVieware1") >= scrollRelative) {
+                    var final = (result.Top - result.Height / 2) * PPI * DocuViewareAPI.GetCurrentZoom("DocuVieware1") - scrollRelative + upperPanel;
+
+
+                }
+                else {
+
+                    var final = PageRelative - scrollRelative + (result.Top - result.Height / 2) * PPI * DocuViewareAPI.GetCurrentZoom("DocuVieware1") + upperPanel;
+
+                }
+                $('#ttol').css({ "position": "absolute", "bottom": 0, "left": 0, "white-space": "pre-line", "top": final, "left": window + space + (result.Left * PPI * DocuViewareAPI.GetCurrentZoom("DocuVieware1")) - scrollLeft });
+
+                var auth = result.Author;
+                var created = result.CreationTime.substring(0, 10);
+                $('#ttol').removeAttr('title');
+                $('#ttol').tooltip().attr('data-original-title', auth + ": " + created).mouseover();
+            }, function () { console.log("fail") });
+        });
+
+        DocuViewareAPI.RegisterOnAnnotationMouseLeave("DocuVieware1", function (annot) {
+            $('#ttol').tooltip('hide');
+
+        });
+
+    </script>
+</body>
+</html>
